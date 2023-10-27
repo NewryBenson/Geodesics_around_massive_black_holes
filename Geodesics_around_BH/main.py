@@ -1,6 +1,7 @@
 #imports
 import numpy as np
 import time
+import math
 import PIL.Image as Image
 import tqdm.std as tqdm
 import multiprocess.pool as Pool
@@ -53,20 +54,21 @@ class Camera:
 class Ray:
     #pixelx and pixely is the pixel location on the screen of the pixel this ray passes through
     #camera is the camera object the ray comes from
-    def __init__(self, pixelx: int, pixely: int, camera: Camera):
-        self.pixelx = pixelx
+    def __init__(self, pixely: int, pixelz: int, camera: Camera):
+        self.pixelz = pixelz
         self.pixely = pixely
         self.camera = camera
-        self.x = 2*pixelx*camera.size/camera.resolution - camera.size
-        self.y = 2*pixely*camera.size/camera.resolution - camera.size
-        self.z = camera.distance
+        self.z = -2*pixelz*camera.size/camera.resolution + camera.size - self.camera.size/(2*self.camera.resolution)
+        self.y = -2*pixely*camera.size/camera.resolution + camera.size - self.camera.size/(2*self.camera.resolution)
+        self.x = camera.distance
         self.r = np.sqrt(self.x**2 + self.y**2 + self.z**2)
         self.phi = np.arccos(self.z/self.r)
-        self.theta = self.y/abs(self.y)*np.arccos(self.x/np.sqrt(self.x**2 + self.y**2))
+        self.theta = -np.sign(self.y)*np.arccos(self.x/np.sqrt(self.x**2 + self.y**2))+np.pi
+
 
     #returns the pixel location on the screen
     def getPixelLocation(self) -> (int, int):
-        return (self.pixelx, self.pixely)
+        return (self.pixely, self.pixelz)
 
     #returns the carthesian location of the pixel this ray goes through
     def getPosition(self) -> (float, float, float):
@@ -74,35 +76,28 @@ class Ray:
 
     #returns carthesian coordinate in form: (r, phi, theta) where r is the distance from the camera, phi the angle between the ray and the line between the middel of the screen and the camera. Theta is the rotation around that line.
     def getSphericalPosition(self) -> (float, float, float):
-        return (self.r, self.phi, self.theta)
+        return (self.r, self.theta, self.phi)
 
     def getColor(self) -> (int, int, int):
-        return (abs(self.phi/np.pi*255), 0, abs(self.theta/2/np.pi *255))
-
-
-
-
-
+        return (math.floor(self.phi/np.pi*255), 0, math.floor(self.theta/(2*np.pi) *255))
 
 
 
 def main():
     black_hole = BlackHole(0, 0, 10, 1)
-    camera = Camera(1, 400, 1)
+    camera = Camera(0.1, 400, 1)
     screen = Image.new(mode="RGB", size=(camera.getResolution(), camera.getResolution()))
     rays={}
     screenPixels = screen.load()
-    for x in range(camera.getResolution()):
-        for y in range(camera.getResolution()):
-            rays[(x, y)] = Ray(x, y, camera)
+    for y in range(camera.getResolution()):
+        for z in range(camera.getResolution()):
+            rays[(y, z)] = Ray(y, z, camera)
 
-    for x in range(camera.getResolution()):
-        for y in range(camera.getResolution()):
-            screenPixels[x, y] = rays[(x, y)].getColor()
+    for y in range(camera.getResolution()):
+        for z in range(camera.getResolution()):
+            screenPixels[y, z] = rays[(y, z)].getColor()
 
     screen.show()
-
-
 
 
 if __name__ == "__main__":
