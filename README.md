@@ -16,6 +16,6 @@ run:
 
 pip install pip update
 
-pip install --user requirements.txt
+pip install --user -r requirements.txt
 
 now in pycharm open requirements.txt and press install requirements in the top right
