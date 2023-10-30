@@ -82,6 +82,20 @@ class Ray:
         return (math.floor(self.phi/np.pi*255), 0, math.floor(self.theta/(2*np.pi) *255))
 
 
+#Define all differential equations (coupled)
+def dSdl(l, S, M):
+    t, r, theta, phi, pt, pr, ptheta, pphi = S
+    return [-1/(1-(2*M/r))*pt, (1-(2*M/r))*pr, (r**-2)*ptheta, (r**-2)*pphi,
+            0, -(1/2)*( (1-(2*M/r))**-2 * (2*M/(r**2))*pt**2 + (2*M/(r**2))*pr**2 -2*(r**-3)*ptheta**2 -2*(r**-3)*np.sin(theta)**2 * pphi**2),
+            np.cos(theta)*(np.sin(theta))**-3 * r**-2 * pphi**2, 0]
+
+#l_span should be an (l0, lfinal) object
+def solver(t0, r0, theta0, phi0, pt0, pr0, ptheta0, pphi0, l_span):
+    S_0 = (t0, r0, theta0, phi0, pt0, pr0, ptheta0, pphi0)
+    sol = scipy.integrate.solve_ivp(dSdl, l_span, S_0, method='RK45')
+    return sol
+
+
 
 def main():
     black_hole = BlackHole(0, 0, 10, 1)
