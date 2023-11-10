@@ -84,12 +84,14 @@ class Ray:
         self.bcr = np.sqrt(27)*blackhole.mass
         self.r1 = np.cbrt(self.b**2*(self.blackhole.mass + np.sqrt(self.blackhole.mass**2-self.b**2/27))) + np.cbrt(self.b**2*(self.blackhole.mass - np.sqrt(self.blackhole.mass**2-self.b**2/27)))
         self.w1 = self.b/self.r1
+        self.scatteringAngle = self.getScatteringAngle()
 
     def scatteringAngleFunc(self, w):
         return np.sqrt(1-w**2*(1-2*self.blackhole.mass/self.b * w))
 
     def getScatteringAngle(self):
-        2*scipy.integrate.quad(self.scatteringAngleFunc, 0, self.w1)
+        return 2*scipy.integrate.quad(self.scatteringAngleFunc, 0, self.w1)
+
     #returns the pixel location on the screen
     def getPixelLocation(self) -> (int, int):
         return (self.pixelx, self.pixely)
