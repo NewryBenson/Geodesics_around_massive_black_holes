@@ -1,15 +1,13 @@
 #imports
 import numpy as np
-import time
-import math
+from numpy import pi, sqrt, sin, cos, floor
+from time import time as time
 import PIL.Image as Image
-import tqdm.std as tqdm
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
-import scipy
 from scipy.integrate import solve_ivp as Solve
-import warnings
-warnings.filterwarnings("ignore")
+from warnings import filterwarnings as filterwarnings
+filterwarnings("ignore")
 
 class Background:
     def __init__(self, image: Image):
@@ -19,7 +17,7 @@ class Background:
         return self.image.load()[pixelx, pixely]
 
     def getAngleValue(self, theta, phi):
-        return self.getPixelValue(math.floor(theta/np.pi*self.image.size[1]), math.floor(phi/(2*np.pi)*self.image.size[0]))
+        return self.getPixelValue(floor(theta/pi*self.image.size[1]), floor(phi/(2*pi)*self.image.size[0]))
 
 
 
@@ -79,9 +77,9 @@ class Ray:
         self.localz = -2*pixely*camera.size/camera.resolution + camera.size - self.camera.size/(2*self.camera.resolution)
         self.localy = 2*pixelx*camera.size/camera.resolution - camera.size + self.camera.size/(2*self.camera.resolution)
         self.localx = camera.distance
-        self.localr = np.sqrt(self.localx**2 + self.localy**2 + self.localz**2)
+        self.localr = sqrt(self.localx**2 + self.localy**2 + self.localz**2)
         self.localtheta = np.arccos(self.localz/self.localr)
-        self.localphi = np.arctan(self.localy/self.localx)+np.pi
+        self.localphi = np.arctan(self.localy/self.localx)+pi
 
 
 
@@ -99,16 +97,16 @@ class Ray:
 
 
     def getColor(self) -> (int, int, int):
-        sol = solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, -self.localx/(1-2*self.blackhole.mass/self.camera.r), -self.localz*self.camera.r/np.sqrt(1-2*self.blackhole.mass/self.camera.r), -self.localy*self.camera.r*np.sin(self.camera.theta)/np.sqrt(1-2*self.blackhole.mass/self.camera.r), (0, 5000), self.blackhole.mass)
+        sol = solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, -self.localx/(1-2*self.blackhole.mass/self.camera.r), -self.localz*self.camera.r/sqrt(1-2*self.blackhole.mass/self.camera.r), -self.localy*self.camera.r*sin(self.camera.theta)/sqrt(1-2*self.blackhole.mass/self.camera.r), (0, 1000), self.blackhole.mass)
         if sol["y"][1][-1] < 4*self.blackhole.mass:
             return (0, 0, 0)
-        return self.background.getAngleValue(sol["y"][2][-1]%(np.pi), sol["y"][3][-1]%(2*np.pi))
+        return self.background.getAngleValue(sol["y"][2][-1]%(pi), sol["y"][3][-1]%(2*pi))
 
     def getPlotData(self):
         sol = solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1,
                      self.localx / (1 - 2 * self.blackhole.mass / self.camera.r),
-                     -self.localz * self.camera.r / np.sqrt(1 - 2 * self.blackhole.mass / self.camera.r),
-                     -self.localy * self.camera.r * np.sin(self.camera.theta) / np.sqrt(
+                     -self.localz * self.camera.r / sqrt(1 - 2 * self.blackhole.mass / self.camera.r),
+                     -self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
                          1 - 2 * self.blackhole.mass / self.camera.r), (0, 200), self.blackhole.mass)
         return sol
 
@@ -119,10 +117,10 @@ def dSdl(l, S, M):
     return [-1/(1-(2*M/r))*pt,
             (1-(2*M/r))*pr,
             1/(r**2)*ptheta,
-            1/((r**2)*np.sin(theta)**2)*pphi,
+            1/((r**2)*sin(theta)**2)*pphi,
             0,
-            -(1/2)*(1/((1-(2*M/r))**2) * (2*M/(r**2))*pt**2 + (2*M/(r**2))*pr**2 -2/(r**3)*ptheta**2 -2/((r**3)*np.sin(theta)**2) * pphi**2),
-            np.cos(theta)/((np.sin(theta)**3) * (r**2)) * pphi**2,
+            -(1/2)*(1/((1-(2*M/r))**2) * (2*M/(r**2))*pt**2 + (2*M/(r**2))*pr**2 -2/(r**3)*ptheta**2 -2/((r**3)*sin(theta)**2) * pphi**2),
+            cos(theta)/((sin(theta)**3) * (r**2)) * pphi**2,
             0]
 
 #l_span should be an (l0, lfinal) object
@@ -139,17 +137,17 @@ def get_Color_pixel(pixel, rays, resolution):
 
 def main():
     black_hole = BlackHole(1)
-    camera = Camera(10, np.pi/2, 0, 1, 100, 1)
+    camera = Camera(10, pi/2, 0, 1, 40, 1)
     screen = Image.new(mode="RGB", size=(camera.getResolution(), camera.getResolution()))
     background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
     rays={}
     screenPixels = screen.load()
 
-    begin = time.time()
+    begin = time()
     for x in range(camera.getResolution()):
         for y in range(camera.getResolution()):
             rays[(x, y)] = Ray(x, y, camera, background, black_hole)
-    print("Creating rays: "+ str(time.time()-begin))
+    print("Creating rays: " + str(time()-begin))
 
     #plotting rays
     '''
@@ -158,29 +156,29 @@ def main():
     for y in range(camera.getResolution()):
         sol = rays[(19,y)].getPlotData()["y"]
         R, T, P = sol[1], sol[2], sol[3]
-        X, Y, Z = R * np.sin(T) * np.cos(P), R * np.sin(T) * np.sin(P), R * np.cos(P)
+        X, Y, Z = R * sin(T) * cos(P), R * sin(T) * sin(P), R * cos(P)
         ax.plot(X, Y, Z)
     plt.show()
     '''
 
 
     '''
-    begin = time.time()
+    begin = time()
     for x in range(camera.getResolution()):
         for y in range(camera.getResolution()):
             screenPixels[x, y] = rays[(x, y)].getColor()
-    print("Calculating paths with 1 core: " + str(time.time() - begin))
+    print("Calculating paths with 1 core: " + str(time() - begin))
     screen.show()
     '''
 
-    start = time.time()
+    start = time()
     pool = Pool(8)
     pixel_values = np.array(
         pool.starmap(get_Color_pixel, [(x, rays, camera.resolution) for x in range(camera.resolution ** 2)])).reshape(
         (camera.resolution, camera.resolution, 3)).astype(np.uint8)
     screen = Image.fromarray(pixel_values, 'RGB')
     pool.close()
-    print("Calculating paths with 8 cores: "+ str(time.time() - start))
+    print("Calculating paths with 8 cores: "+ str(time() - start))
     screen.show()
 
 
