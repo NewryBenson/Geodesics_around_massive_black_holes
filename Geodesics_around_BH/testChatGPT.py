@@ -7,7 +7,7 @@ import PIL.Image as Image
 from multiprocessing import Pool
 from scipy.integrate import solve_ivp as solve
 from warnings import filterwarnings
-import tqdm
+import matplotlib.pyplot as plt
 
 filterwarnings("ignore")
 
@@ -23,7 +23,7 @@ class Background:
 
     def get_angle_value(self, theta, phi):
         """Get angle value from the background image."""
-        return self.image.load()[floor(phi / (2 * pi) * self.image.size[0]), floor(theta / pi * self.image.size[1])]
+        return self.image.load()[floor((2*np.pi-phi) / (2 * pi) * self.image.size[0]), floor(theta / pi * self.image.size[1])]
 
 
 class BlackHole:
@@ -92,7 +92,7 @@ class Ray:
         self._localx = self.camera.distance
         self._localr = sqrt(self.localx ** 2 + self.localy ** 2 + self.localz ** 2)
         self._localtheta = np.arccos(self.localz / self.localr)
-        self._localphi = np.arctan(self.localy / self.localx) + pi
+        self._localphi = np.arctan(-self.localy / self.localx) + pi
 
     @property
     def pixelx(self):
@@ -169,34 +169,32 @@ class Ray:
 
     def get_color(self):
         """Returns the color of the pixel this ray passes through."""
-        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1,
-                           -self.localx / (1 - 2 * self.blackhole.mass / self.camera.r),
-                           -self.localz * self.camera.r / sqrt(1 - 2 * self.blackhole.mass / self.camera.r),
-                           -self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
-                               1 - 2 * self.blackhole.mass / self.camera.r), (0, 200), self.blackhole.mass)
-        if sol["y"][1][-1] < 4 * self.blackhole.mass:
+        pr0, ptheta0, pphi0 = -self.localx / (1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(1 - 2 * self.blackhole.mass / self.camera.r), self.localy * self.camera.r * sin(self.camera.theta) / sqrt(1 - 2 * self.blackhole.mass / self.camera.r)
+        if ptheta0**2 + pphi0**2/sin(self.camera.theta)**2  <= 27 * self.blackhole.mass**2:
             return 0, 0, 0
-        return self.background.get_angle_value(sol["y"][2][-1] % pi, sol["y"][3][-1] % (2 * pi))
+        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, pr0, ptheta0, pphi0, (0, 200), self.blackhole.mass)
+        return self.background.get_angle_value((sol["y"][2][-1] + sol["y"][6][-1]*np.sqrt(1-2*self.blackhole.mass/sol["y"][1][-1])/sol["y"][1][-1]) % pi, (sol["y"][3][-1] + sol["y"][7][-1]*sqrt(1-2*self.blackhole.mass/sol["y"][1][-1])/sol["y"][1][-1]/sin(sol["y"][2][-1])) % (2 * pi))
 
     def get_plot_data(self):
         """Returns data for plotting the ray path."""
-        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1,
-                           self.localx / (1 - 2 * self.blackhole.mass / self.camera.r),
-                           -self.localz * self.camera.r / sqrt(1 - 2 * self.blackhole.mass / self.camera.r),
-                           -self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
-                               1 - 2 * self.blackhole.mass / self.camera.r), (0, 200), self.blackhole.mass)
+        pr0, ptheta0, pphi0 = -self.localx / (
+                    1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(
+            1 - 2 * self.blackhole.mass / self.camera.r), self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
+            1 - 2 * self.blackhole.mass / self.camera.r)
+        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, pr0, ptheta0, pphi0, (0, 200), self.blackhole.mass)
         return sol
 
 
 def get_color_pixel(args):
     """Get color of the pixel using ray tracing."""
+
     pixel, rays, resolution = args
     return rays[(pixel // resolution, pixel % resolution)].get_color()
 
 
-def main():
-    black_hole = BlackHole(1)
-    camera = Camera(10, pi / 2, 0, 1, 1000, 1)
+def mainPicture():
+    black_hole = BlackHole(0)
+    camera = Camera(10, pi / 2, 0, 1, 400, 1)
     background = Background(Image.open("fourfull.png"))
     rays = {}
     begin = time()
@@ -207,16 +205,61 @@ def main():
 
     start = time()
     pixel_values = []
-    with Pool(os.cpu_count()) as pool:
+    with Pool(os.cpu_count()-1) as pool:
         for pixel in pool.map(get_color_pixel, [(x, rays, camera.resolution) for x in range(camera.resolution**2)]):
             pixel_values.append(pixel)
         pixel_values = np.array(pixel_values).reshape((camera.resolution, camera.resolution, 3)).astype(np.uint8)
 
     screen = Image.fromarray(pixel_values, 'RGB')
     pool.close()
-    print("Calculating paths with "+ str(os.cpu_count()) + " cores: " + str(time() - start))
+    print("Calculating paths with "+ str(os.cpu_count()-1) + " cores: " + str(time() - start))
     screen.show()
+
+    '''fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    sol = rays[(27,5)].get_plot_data()["y"]
+    R, T, P = sol[1], sol[2], sol[3]
+    X = R * np.sin(T) * np.cos(P)
+    Y = R * np.sin(T) * np.sin(P)
+    Z = R * np.cos(T)
+    ax.plot(X, Y, Z)
+    ax.set_ylim([-10, 10])
+    ax.set_xlim([-10, 10])
+    ax.set_zlim([-10, 10])
+    plt.show()'''
+
+def mainPlot():
+    black_hole = BlackHole(1)
+    camera = Camera(10, pi / 2, 0, 1, 4, 0)
+    background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
+    rays = {}
+    begin = time()
+    for i in range(camera.resolution):
+        for j in range(camera.resolution):
+            rays[(i, j)] = Ray(i, j, camera, background, black_hole)
+    print("Creating rays: " + str(time() - begin))
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    for i in range(camera.resolution):
+        for j in range(camera.resolution):
+            sol = rays[(i,j)].get_plot_data()["y"]
+            R, T, P = sol[1], sol[2], sol[3]
+            X = R * np.sin(T) * np.cos(P)
+            Y = R * np.sin(T) * np.sin(P)
+            Z = R * np.cos(T)
+            ax.plot(X, Y, Z)
+    r = 2
+    phi, theta = np.mgrid[0.0:pi:100j, 0.0:2.0 * pi:100j]
+    x = r * sin(phi) * cos(theta)
+    y = r * sin(phi) * sin(theta)
+    z = r * cos(phi)
+    ax.plot_surface(
+        x, y, z, rstride=1, cstride=1, color='k', linewidth=0)
+    ax.set_ylim([-10, 10])
+    ax.set_xlim([-10, 10])
+    ax.set_zlim([-10, 10])
+    plt.show()
 
 
 if __name__ == "__main__":
-    main()
+    mainPicture()
