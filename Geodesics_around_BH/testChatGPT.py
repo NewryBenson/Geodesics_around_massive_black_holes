@@ -196,8 +196,8 @@ def get_color_pixel(args):
 
 def main():
     black_hole = BlackHole(1)
-    camera = Camera(10, pi / 2, 0, 1, 100, 1)
-    background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
+    camera = Camera(10, pi / 2, 0, 1, 1000, 1)
+    background = Background(Image.open("fourfull.png"))
     rays = {}
     begin = time()
     for x in range(camera.resolution):
@@ -214,7 +214,7 @@ def main():
 
     screen = Image.fromarray(pixel_values, 'RGB')
     pool.close()
-    print("Calculating paths with 8 cores: " + str(time() - start))
+    print("Calculating paths with "+ str(os.cpu_count()) + " cores: " + str(time() - start))
     screen.show()
 
 
