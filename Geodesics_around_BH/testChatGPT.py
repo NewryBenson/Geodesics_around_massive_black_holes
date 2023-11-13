@@ -196,7 +196,7 @@ def get_color_pixel(args):
 def mainPicture():
 
     black_hole = BlackHole(1)
-    camera = Camera(30, pi / 2, 0, 1, 100, 1)
+    camera = Camera(30, pi / 2, 0, 1, 1000, 1)
     result = Image.new('RGB', (camera.resolution, camera.resolution))
     pixels = result.load()
     background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
