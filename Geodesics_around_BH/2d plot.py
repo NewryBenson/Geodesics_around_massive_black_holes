@@ -9,7 +9,7 @@ from scipy.integrate import solve_ivp as solve
 from warnings import filterwarnings
 import matplotlib.pyplot as plt
 import pylab as pl
-
+plt.rcParams['text.usetex'] = True
 filterwarnings("ignore")
 
 def _dSdl( l, s, m):
@@ -43,13 +43,14 @@ def get_plot_data(r, theta, phi, localx, localy, localz, mass):
 
 fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 
-'''number_of_rays = 10
+number_of_rays = 100
 for i in range(number_of_rays):
     sol = get_plot_data(10, pi/2, 0, 1, i/number_of_rays, 0, 1)["y"]
     ax.plot(sol[3], sol[1])
     ax.set_ylim([0, 10])
-circle1 = pl.Circle((0, 0), 2, color='k')
-ax.add_patch(circle1)
+ax.set_rticks([int(2), int(4), 6, 8,10])
+ax.set_yticklabels([str(2), str(4), '6' , "8" , 'black hole masses'])
+plt.title("Rays around a black hole")
 plt.show()
 '''
 y = 0.48649135
@@ -68,7 +69,9 @@ ax.plot(sol[3], sol[1], '--',color = "g", alpha = 0.5)
 sol = get_plot_data(10, pi/2, 0, 1, 1+d, 0, 0)["y"]
 ax.plot(sol[3], sol[1], '--',color = "b", alpha = 0.5)
 ax.set_ylim([0, 10])
-ax.set_rticks([int(2), int(3), np.sqrt(27), 10])
+ax.set_rticks([int(2), int(3), np.sqrt(27), int(10)])
+ax.set_yticklabels([str(2), str(3), r'$\sqrt{27}$', "black hole masses"])
 ax.text(100,100, "Black hole masses")
 plt.legend()
-plt.show()
+plt.title("Rays around a black hole")
+plt.show()'''
