@@ -196,10 +196,10 @@ def get_color_pixel(args):
 def mainPicture():
 
     black_hole = BlackHole(1)
-    camera = Camera(30, pi / 2, 0, 1, 401, 1)
+    camera = Camera(30, pi / 2, 0, 1, 100, 1)
     result = Image.new('RGB', (camera.resolution, camera.resolution))
     pixels = result.load()
-    background = Background(Image.open("colorgridCorrect.png"))
+    background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
     rays = {}
     begin = time()
     for x in range(camera.resolution):
