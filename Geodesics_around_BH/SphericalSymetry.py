@@ -23,11 +23,13 @@ class Background:
 
     def get_angle_value(self, theta, phi):
         """Get angle value from the background image."""
-        return self.image.load()[self.image.size[0]-np.floor(phi / (2 * pi) * self.image.size[0])%self.image.size[0]-1, np.ceil(theta / pi * self.image.size[1])%self.image.size[1]]
+        return self.image.load()[
+            self.image.size[0] - np.floor(phi / (2 * pi) * self.image.size[0]) % self.image.size[0] - 1, np.ceil(
+                theta / pi * self.image.size[1]) % self.image.size[1]]
 
 
 class BlackHole:
-    def __init__(self, mass: float,accretionMin: float, accretionRange: float):
+    def __init__(self, mass: float, accretionMin: float, accretionRange: float):
         self._mass = mass
         self._accretionRange = accretionRange
         self._accretionMin = accretionMin
@@ -46,6 +48,7 @@ class BlackHole:
     def accretionMin(self):
         """Returns the radius of the accretion disk of the black hole."""
         return self._accretionMin
+
 
 class Camera:
     def __init__(self, r: float, theta: float, phi: float, distance: float, resolution: int, size: float):
@@ -97,13 +100,45 @@ class Ray:
         self._calculate_local_coordinates()
 
     def _calculate_local_coordinates(self):
-        """Calculate local coordinates once and store them as attributes."""                       #| 0.0025
-        self._localz = -self.camera.size * (self.pixely / self.camera.resolution - 1/2) - 1 / (2 * self.camera.resolution)#1p = 0.0025, 200p = 1
-        self._localy = self.camera.size * (self.pixelx / self.camera.resolution - 1/2) + 1 / (2 * self.camera.resolution)
+        """Calculate local coordinates once and store them as attributes."""
+        self._localz = -self.camera.size * (self.pixely / self.camera.resolution - 1 / 2) - 1 / (
+                    2 * self.camera.resolution)
+        self._localy = self.camera.size * (self.pixelx / self.camera.resolution - 1 / 2) + 1 / (
+                    2 * self.camera.resolution)
         self._localx = self.camera.distance
         self._localr = sqrt(self.localx ** 2 + self.localy ** 2 + self.localz ** 2)
         self._localtheta = np.arccos(self.localz / np.sqrt(self.localx ** 2 + self.localz ** 2))
         self._localphi = np.arctan(self.localy / self.localx) + pi
+        self._pt0, self._pr0, self._ptheta0, self._pphi0 = -1, -self.localx / (
+                1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(
+            1 - 2 * self.blackhole.mass / self.camera.r), self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
+            1 - 2 * self.blackhole.mass / self.camera.r)
+        self._b = self.ptheta0 ** 2 + self.pphi0 ** 2 / sin(self.camera.theta) ** 2
+
+    @property
+    def pt0(self):
+        """Returns the t momentum of the pixel"""
+        return self._pt0
+
+    @property
+    def pr0(self):
+        """Returns the r momentum of the pixel"""
+        return self._pr0
+
+    @property
+    def ptheta0(self):
+        """Returns the theta momentum of the pixel"""
+        return self._ptheta0
+
+    @property
+    def pphi0(self):
+        """Returns the phi momentum of the pixel"""
+        return self._pphi0
+
+    @property
+    def b(self):
+        """Returns the impact parameter of the pixel"""
+        return self._b
 
     @property
     def pixelx(self):
@@ -160,9 +195,6 @@ class Ray:
         """Returns the local phi angle"""
         return self._localphi
 
-    def _cart(self, r, theta, phi):
-        return r*cos(phi)*sin(theta), r*sin(phi)*sin(theta), r*cos(theta)
-
 
     def _dSdl(self, l, s, m):
         t, r, theta, phi, pt, pr, ptheta, pphi = s
@@ -177,35 +209,36 @@ class Ray:
                 cos(theta) / ((sin(theta) ** 3) * (r ** 2)) * pphi ** 2,
                 0]
 
-
     def _solver(self, t0, r0, theta0, phi0, pt0, pr0, ptheta0, pphi0, l_span, M):
         s_0 = (t0, r0, theta0, phi0, pt0, pr0, ptheta0, pphi0)
-        sol = solve(self._dSdl, l_span, s_0, method='DOP853', args=[M], events=_acretionDisk)
+        sol = solve(self._dSdl, l_span, s_0, method='DOP853', args=[M])
         return sol
 
     def get_color(self):
         """Returns the color of the pixel this ray passes through."""
-        pr0, ptheta0, pphi0 = -self.localx / (1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(1 - 2 * self.blackhole.mass / self.camera.r), self.localy * self.camera.r * sin(self.camera.theta) / sqrt(1 - 2 * self.blackhole.mass / self.camera.r)
-        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, pr0, ptheta0, pphi0, (0, 200),self.blackhole.mass)
-        if len(sol.y_events[0]) > 0:
-            if sol.y_events[0][0][1] < self.blackhole.accretionRange:
-                if sol.y_events[0][0][1] > self.blackhole.accretionMin:
-                    return 255, 255, 255
-        if ptheta0**2 + pphi0**2/sin(self.camera.theta)**2  <= 27 * self.blackhole.mass**2:
+        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, self.pt0, self.pr0, self.ptheta0, self.pphi0, (0, 200),
+                           self.blackhole.mass)
+        if self.b <= 27 * self.blackhole.mass ** 2:
             return 0, 0, 0
         return self.background.get_angle_value(sol.y[2][-1], (sol.y[3][-1]))
 
     def get_plot_data(self):
         """Returns data for plotting the ray path."""
         pr0, ptheta0, pphi0 = -self.localx / (
-                    1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(
+                1 - 2 * self.blackhole.mass / self.camera.r), -self.localz * self.camera.r / sqrt(
             1 - 2 * self.blackhole.mass / self.camera.r), self.localy * self.camera.r * sin(self.camera.theta) / sqrt(
             1 - 2 * self.blackhole.mass / self.camera.r)
-        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, pr0, ptheta0, pphi0, (0, 200), self.blackhole.mass)
+        sol = self._solver(0, self.camera.r, self.camera.theta, self.camera.phi, -1, pr0, ptheta0, pphi0, (0, 200),
+                           self.blackhole.mass)
         return sol
 
-def _acretionDisk(t, y, M):
-    return y[2]%np.pi - np.pi/2
+def cart(sol):
+    t, r, theta, phi = sol[0], sol[1], sol[2], sol[3]
+    return np.array([t, r * cos(phi) * sin(theta), r * sin(phi) * sin(theta), r * cos(theta)])
+
+def spheri(sol):
+    t, x, y, z = sol[0], sol[1], sol[2], sol[3]
+    return np.array([t, sqrt(x ** 2 + y ** 2 + z ** 2), np.arccos(z / np.sqrt(x ** 2 + z ** 2)), np.arctan(y / x) + pi])
 
 def get_color_pixel(args):
     """Get color of the pixel using ray tracing."""
@@ -215,36 +248,68 @@ def get_color_pixel(args):
 
 
 def mainPicture():
-
+    absBegin = time()
+    resolution = 401
     black_hole = BlackHole(1, 4, 6)
-    camera = Camera(30, pi / 2 - 0.3, 0, 1, 401, 1)
+    camera = Camera(30, pi / 2, 0, 1, resolution, 1)
     result = Image.new('RGB', (camera.resolution, camera.resolution))
     pixels = result.load()
-    background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
-    rays = {}
+    background = Background(Image.open("colorgridCorrect.png"))
+
+
+
     begin = time()
-    for x in range(camera.resolution):
-        for y in range(camera.resolution):
-            rays[(x, y)] = Ray(x, y, camera, background, black_hole)
-    print("Creating rays: " + str(time() - begin))
+    rays = {}
+    for y in range(resolution):
+        for z in range(resolution):
+            rays[(y, z)] = Ray(y, z, camera, background, black_hole)
+    print("Creating rays done: " + str(time() - begin))
 
 
-    start = time()
-    pixel_values = []
-    with Pool(os.cpu_count()-1) as pool:
-        for pixel in pool.map(get_color_pixel, [(x, rays, camera.resolution) for x in range(camera.resolution**2)]):
-            pixel_values.append(pixel)
-            
-    pool.close()
-    '''for x in range(camera.resolution):
-        for y in range(camera.resolution):
-            pixel_values.append(rays[(x,y)].get_color())'''
-
-    for i in range(len(pixel_values)):
-        pixels[(i // camera.resolution, i % camera.resolution)]=pixel_values[i]
+    begin = time()
+    sols = {}
+    for x in range(int(np.ceil(resolution/2))):
+        sols[(x, x)] = np.array(rays[(x,x)].get_plot_data().y[:4])
+    print("Calculating diagonal done: " + str(time() - begin))
 
 
-    print("Calculating paths with "+ str(os.cpu_count()-1) + " cores: " + str(time() - start))
+    begin = time()
+    scaling = {}
+    for x in range(int(np.ceil(resolution/2))):
+        ray = rays[(x,x)]
+        sol = sols[(x,x)]
+        r0 = np.sign(ray.localy)*sqrt(ray.localz**2+ray.localy**2)
+        cars = cart(sol)
+        scaling[x] = (np.sign(cars[2])*sqrt(cars[3]**2+cars[2]**2))/r0
+    print("Calculating scaling factors done: " + str(time() - begin))
+
+    begin = time()
+    for y in range(resolution):
+        for z in range(resolution):
+            if y != z or y+z>resolution:
+                localx, localy, localz = rays[(y,z)].localx, rays[(y,z)].localy, rays[(y,z)].localz
+                x = np.floor(resolution/2) - np.round(np.sqrt(((y-np.floor(resolution/2))**2 + (z-np.floor(resolution/2))**2)/2))
+                t, r, theta, phi = sols[(x, x)][0], sols[(x, x)][1], sols[(x, x)][2], sols[(x, x)][3]
+                scaledlocaly, scaledlocalz, scaledlocalx = scaling[x] * localy, scaling[x] * localz, r * cos(phi) * sin(theta)
+                sols[(y, z)] = spheri(np.array([t, scaledlocalx, scaledlocaly, scaledlocalz]))
+    print("Calculating other paths done: " + str(time() - begin))
+
+
+    begin = time()
+    for x in range(resolution):
+        for y in range(resolution):
+            if rays[(x,y)].b <= 27 * black_hole.mass ** 2:
+                pixels[x, y] = 0,0,0
+            else:
+                pixels[x,y] = background.get_angle_value(sols[(x,y)][2][-1], sols[(x,y)][3][-1])
+    print("Coloring the image done " + str(time() - begin))
+    print("Total processing time: " + str(time() - absBegin))
+    print(sols[(146, 147)])
+    print(sols[(145, 146)])
+    print(sols[(147, 145)])
+    print(sols[(146, 146)])
+    print(background.get_angle_value(sols[(149,148)][2][-1], sols[(149,148)][3][-1]))
+    print(background.get_angle_value(sols[(149, 149)][2][-1], sols[(149, 149)][3][-1]))
     result.show()
 
     '''fig = plt.figure()
@@ -259,6 +324,7 @@ def mainPicture():
     ax.set_xlim([-10, 10])
     ax.set_zlim([-10, 10])
     plt.show()'''
+
 
 def mainPlot():
     black_hole = BlackHole(1, 1)
@@ -275,7 +341,7 @@ def mainPlot():
     ax = fig.add_subplot(projection='3d')
     for i in range(camera.resolution):
         for j in range(camera.resolution):
-            sol = rays[(i,j)].get_plot_data().y
+            sol = rays[(i, j)].get_plot_data().y
             R, T, P = sol[1], sol[2], sol[3]
             X = R * np.sin(T) * np.cos(P)
             Y = R * np.sin(T) * np.sin(P)

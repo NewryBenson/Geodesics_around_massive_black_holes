@@ -11,21 +11,24 @@ for x in range(1024):
         pixels[x, y+512] = (255, 255, 0)
 
 
-'''for x in range(2048):
-    if x % 64 == 0:
+for x in range(2048):
+    if x % 64 == 0 and x != 0:
         for y in range(1024):
-            pixels[x+1, y] = (0, 0, 0)
+            pixels[x-1, y] = (0, 0, 0)
             pixels[x, y] = (0, 0, 0)
+
 for y in range(1024):
-    if y % 64 == 0:
+    if y % 64 == 0 and y != 0:
         for x in range(2048):
-            pixels[x, y+1] = (0, 0, 0)
+            pixels[x, y-1] = (0, 0, 0)
             pixels[x, y] = (0, 0, 0)
+
 for y in range(1024):
     pixels[2047, y] = (0, 0, 0)
-    pixels[2046, y] = (0, 0, 0)
+    pixels[0, y] = (0, 0, 0)
 
 for x in range(2048):
     pixels[x, 1023] = (0, 0, 0)
-    pixels[x, 1022] = (0, 0, 0)'''
-image.save("colorCorrect.png")
+    pixels[x, 0] = (0, 0, 0)
+
+image.save("colorgridCorrect.png")
