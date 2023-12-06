@@ -91,20 +91,20 @@ class Camera:
 
 
 class Ray:
-    def __init__(self, pixelx: int, pixely: int, camera: Camera, background: Background, blackhole: BlackHole):
+    def __init__(self, pixelx: int, camera: Camera, background: Background, blackhole: BlackHole):
         self._pixelx = pixelx
-        self._pixely = pixely
         self._camera = camera
         self._background = background
         self._blackhole = blackhole
         self._calculate_local_coordinates()
 
     def _calculate_local_coordinates(self):
-        """Calculate local coordinates once and store them as attributes."""                       #| 0.0025
-        self._localz = -self.camera.size * (self.pixely / self.camera.resolution - 1/2) - 1 / (2 * self.camera.resolution)#1p = 0.0025, 200p = 1
-        self._localy = self.camera.size * (self.pixelx / self.camera.resolution - 1/2) + 1 / (2 * self.camera.resolution)
+        """Calculate local coordinates once and store them as attributes."""
+        self._localz = 0
+        self._localy = self.camera.size * self.pixelx / self.camera.resolution
         self._localx = self.camera.distance
         self._localr = sqrt(self.localx ** 2 + self.localy ** 2 + self.localz ** 2)
+        self._localx, self._localy = self.localx/self.localr, self.localy/self.localr
         self._localtheta = np.arccos(self.localz / np.sqrt(self.localx ** 2 + self.localz ** 2))
         self._localphi = np.arctan(self.localy / self.localx) + pi
         self._pt0, self._pr0, self._ptheta0, self._pphi0 = -1, -self.localx / (
@@ -142,11 +142,6 @@ class Ray:
     def pixelx(self):
         """Returns the x coordinate of the pixel"""
         return self._pixelx
-
-    @property
-    def pixely(self):
-        """Returns the y coordinate of the pixel"""
-        return self._pixely
 
     @property
     def camera(self):
@@ -226,45 +221,111 @@ class Ray:
                            self.blackhole.mass)
         return sol
 
+def cart(sol):
+    t, r, theta, phi = sol[0], sol[1], sol[2], sol[3]
+    return np.array([t, r * cos(phi) * sin(theta), r * sin(phi) * sin(theta), r * cos(theta)])
+
+def spheri(sol):
+    t, x, y, z = sol[0], sol[1], sol[2], sol[3]
+    return np.array([t, sqrt(x ** 2 + y ** 2 + z ** 2), np.arccos(z / np.sqrt(x ** 2 + z ** 2)), np.arctan(y / x) + pi])
+
 def get_color_pixel(args):
     """Get color of the pixel using ray tracing."""
 
     pixel, rays, resolution = args
     return rays[(pixel // resolution, pixel % resolution)].get_color()
 
+def letHimCook(args):
+    i, grouping, infesc, resolution, rays, black_hole, background = args
+    if (rays.b <= np.sqrt(27) * black_hole.mass):
+        return [ (0,0,0) for _ in grouping]
+    result = []
+    for (y, z) in grouping:
+        alpha = np.arctan2((resolution / 2 + 1 / 2 - z), (y - resolution / 2 + 1 / 2))
+        carthesianAccent = np.matmul(np.matrix([[1, 0, 0], [0, cos(alpha), -sin(alpha)], [0, sin(alpha), cos(alpha)]]), np.matrix([[infesc[0]], [infesc[1]], [infesc[2]]]))
+        theta, phi = np.arccos(carthesianAccent[2]), np.arctan2(carthesianAccent[1], carthesianAccent[0])
+        result.append(background.get_angle_value(theta, phi))
+    return result
 
 def mainPicture():
-
+    absBegin = time()
+    resolution = 1001
     black_hole = BlackHole(1, 4, 6)
-    camera = Camera(30, pi / 2, 0, 1, 401, 1)
+    camera = Camera(30, pi / 2, 0, 1, resolution, 1)
     result = Image.new('RGB', (camera.resolution, camera.resolution))
     pixels = result.load()
-    background = Background(Image.open("colorgridCorrect.png"))
-    rays = {}
+    background = Background(Image.open("InterstellarWormhole_Fig10.jpg"))
+
+
     begin = time()
-    for x in range(camera.resolution):
-        for y in range(camera.resolution):
-            rays[(x, y)] = Ray(x, y, camera, background, black_hole)
-    print("Creating rays: " + str(time() - begin))
+    rays = {}
+    for i in range(int(np.ceil(np.sqrt(2)*resolution/2))+1):
+        rays[i] = Ray(i, camera, background, black_hole)
+    print("Creating rays done: " + str(time() - begin))
 
 
-    start = time()
+    begin = time()
+    infesc = {}
+    for i in range(int(np.ceil(np.sqrt(2)*resolution/2))+1):
+        sols = np.array(rays[i].get_plot_data().y[:4])
+        theta, phi = sols[2][-1], sols[3][-1]
+        infesc[i] = [cos(phi), sin(phi), 0]
+    print("Calculating diagonal done: " + str(time() - begin))
+
+    begin = time()
+    grouping = [ [] for _ in range(int(np.ceil(np.sqrt(2)*resolution/2))+1) ]
+    for y in range(resolution):
+        for z in range(resolution):
+            R = np.sqrt((y - resolution / 2 + 1 / 2) ** 2 + (z - resolution / 2 + 1 / 2) ** 2)
+            i = int(np.floor(R))
+            grouping[i].append((y,z))
+    i = -1
+    while i<0:
+        if len(grouping[i]) == 0:
+            grouping.pop(i)
+            i -= 1
+        else: i = 1
+    print("Grouping done: " + str(time() - begin))
+
+    '''begin = time()
+    for i in range(len(grouping)):
+        if (rays[i].b <= np.sqrt(27) * black_hole.mass):
+            for (y, z) in grouping[i]:
+                pixels[y, z] = 0, 0, 0
+        else:
+            finalCoords = infesc[i]
+            for (y,z) in grouping[i]:
+                alpha = np.arctan2((resolution / 2 + 1 / 2 - z), (y - resolution / 2 + 1 / 2))
+                carthesianAccent = np.matmul(np.matrix([[1, 0, 0], [0, cos(alpha), -sin(alpha)], [0, sin(alpha), cos(alpha)]]),np.matrix([[finalCoords[0]], [finalCoords[1]], [finalCoords[2]]]))
+                theta, phi = np.arccos(carthesianAccent[2]), np.arctan2(carthesianAccent[1], carthesianAccent[0])
+                pixels[y, z] = background.get_angle_value(theta, phi)
+    print("Coloring the image " + str(time() - begin))'''
+
+    begin = time()
     pixel_values = []
-    with Pool(os.cpu_count()-1) as pool:
-        for pixel in pool.map(get_color_pixel, [(x, rays, camera.resolution) for x in range(camera.resolution**2)]):
+    with Pool(os.cpu_count() - 1) as pool:
+        for pixel in pool.map(letHimCook, [(x, grouping[x], infesc[x], camera.resolution, rays[x], black_hole, background) for x in range(len(grouping))]):
             pixel_values.append(pixel)
-            
     pool.close()
-    '''
-    for x in range(camera.resolution):
-        for y in range(camera.resolution):
-            pixels[(x,y)] = rays[(x,y)].get_color()
-    '''
-    for i in range(len(pixel_values)):
-        pixels[(i // camera.resolution, i % camera.resolution)]=pixel_values[i]
+    for i in range(len(grouping)):
+        for x in range(len(grouping[i])):
+            pixels[grouping[i][x]] = pixel_values[i][x]
+    print("Coloring the image " + str(time() - begin))
 
-
-    print("Calculating paths with "+ str(os.cpu_count()-1) + " cores: " + str(time() - start))
+    '''begin = time()
+    for y in range(resolution):
+        for z in range(resolution):
+            R = np.sqrt((y-resolution/2+1/2)**2 + (z-resolution/2+1/2)**2)
+            i = int(np.round(R))
+            if (rays[i].b <= np.sqrt(27) * black_hole.mass):
+                pixels[y, z] = 0,0,0
+            else:
+                alpha = np.arctan2((resolution/2 + 1/2-z), (y-resolution/2+1/2))
+                carthesianAccent = np.matmul(np.matrix([[1,0,0], [0, cos(alpha), -sin(alpha)], [0, sin(alpha), cos(alpha)]]), np.matrix([[infesc[i][0]], [infesc[i][1]], [infesc[i][2]]]))
+                theta, phi = np.arccos(carthesianAccent[2]), np.arctan2(carthesianAccent[1], carthesianAccent[0])
+                pixels[y, z] = background.get_angle_value(theta, phi)
+    print("Coloring the image " + str(time() - begin))'''
+    print("Total processing time: " + str(time() - absBegin))
     result.show()
 
     '''fig = plt.figure()
@@ -279,6 +340,7 @@ def mainPicture():
     ax.set_xlim([-10, 10])
     ax.set_zlim([-10, 10])
     plt.show()'''
+
 
 def mainPlot():
     black_hole = BlackHole(1, 1)
@@ -295,7 +357,7 @@ def mainPlot():
     ax = fig.add_subplot(projection='3d')
     for i in range(camera.resolution):
         for j in range(camera.resolution):
-            sol = rays[(i,j)].get_plot_data().y
+            sol = rays[(i, j)].get_plot_data().y
             R, T, P = sol[1], sol[2], sol[3]
             X = R * np.sin(T) * np.cos(P)
             Y = R * np.sin(T) * np.sin(P)
